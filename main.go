@@ -1,31 +1,46 @@
 package main
 
 import (
+	"flag"
 	"log"
+	"net/url"
 	"sync"
-	"golang.org/x/net/websocket"
+
+	"github.com/gorilla/websocket"
 )
 
-var origin = "http://localhost/"
-var url = "ws://localhost:2794/"
+var addr = flag.String("addr", "localhost:3012", "http service address")
 
 func main() {
+	flag.Parse()
+	log.SetFlags(0)
+
+	u := url.URL{Scheme: "ws", Host: *addr, Path: "/echo"}
 	var wg sync.WaitGroup
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 1000; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			ws, err := websocket.Dial(url, "/", origin)
-			defer ws.Close()
+			c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 			if err != nil {
-				log.Fatal(err)
+				log.Fatal("dial:", err)
 			}
+			defer c.Close()
 
-			message := []byte("")
+			go func() {
+				for {
+					_, _, err := c.ReadMessage()
+					if err != nil {
+						return
+					}
+				}
+			}()
+
 			for i := 0; i < 1000; i++ {
-				_, err = ws.Write(message)
+				err := c.WriteMessage(websocket.TextMessage, []byte(""))
 				if err != nil {
-					log.Fatal(err)
+					log.Println("write:", err)
+					return
 				}
 			}
 		}()
